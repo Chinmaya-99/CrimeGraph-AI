@@ -1,0 +1,71 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# =========================
+# Virtual environment
+# =========================
+myenv/
+venv/
+env/
+.venv/
+
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+.cursor/
+
+# =========================
+# Logs / Debug
+# =========================
+*.log
+debug-*.log
+
+# =========================
+# Test / Coverage
+# =========================
+.pytest_cache/
+.coverage
+htmlcov/
+.coverage.*
+.cache/
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Temporary files
+# =========================
+*.tmp
+*.temp
+*.bak
+
+# =========================
+# Generated / local data
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+
+# =========================
+# Build / Distribution
+# =========================
+build/
+dist/
+*.egg-info/

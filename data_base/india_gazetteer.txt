@@ -1,0 +1,45 @@
+# India geographic gazetteer
+# One geographic name per line.
+# Add the full gazetteer here later.
+
+Cuttack
+Bhubaneswar
+Puri
+Rourkela
+Berhampur
+
+Pune
+Mumbai
+Nagpur
+Nashik
+Aurangabad
+
+Delhi
+New Delhi
+Kolkata
+Chennai
+Bengaluru
+Hyderabad
+Ahmedabad
+Jaipur
+Lucknow
+Patna
+Bhopal
+Ranchi
+Guwahati
+Bhubaneswar
+
+Odisha
+Maharashtra
+Delhi
+West Bengal
+Tamil Nadu
+Karnataka
+Telangana
+Gujarat
+Rajasthan
+Uttar Pradesh
+Bihar
+Jharkhand
+Assam
+Madhya Pradesh

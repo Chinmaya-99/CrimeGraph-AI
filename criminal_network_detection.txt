@@ -1,0 +1,737 @@
+# SIH26189 — AI-Powered Criminal Network Analysis System
+
+**Core idea:**
+Start with a seed investigation, such as an FIR. Extract entities from it, correlate those entities against multiple data sources, discover relationships, build a graph, identify suspicious/high-priority nodes, and recursively expand the network to uncover deeper connections. Use blockchain/security for **tamper-evident provenance and auditability**, not for storing the actual sensitive data.
+
+---
+
+## 1. Data Sources
+
+We will initially model six major data sources:
+
+```text
+FIR_DB
+CONTACT_DB
+BANK_DB
+SOCIAL_MEDIA_DB
+CRIMINAL_HISTORY_DB
+SURVEILLANCE / LOCATION_HISTORY_DB
+```
+
+For the hackathon, these can be synthetic/anonymized datasets.
+
+### FIR_DB
+
+Contains police/FIR information:
+
+```text
+fir_id
+case_id
+date
+location
+description
+persons
+vehicles
+organizations
+phone_numbers
+```
+
+### CONTACT_DB
+
+```text
+contact_id
+caller
+receiver
+timestamp
+duration
+location
+```
+
+### BANK_DB
+
+```text
+transaction_id
+sender_account
+receiver_account
+amount
+timestamp
+bank
+location
+```
+
+### SOCIAL_MEDIA_DB
+
+```text
+post_id
+user
+mentioned_users
+phone/email
+location
+timestamp
+content
+```
+
+### CRIMINAL_HISTORY_DB
+
+```text
+person_id
+case_id
+offense
+date
+status
+location
+```
+
+### SURVEILLANCE / LOCATION_HISTORY_DB
+
+```text
+record_id
+entity
+location
+timestamp
+source
+```
+
+---
+
+# 2. Ingestion Layer
+
+User provides an input such as:
+
+```text
+FIR PDF / TXT
+```
+
+The system:
+
+```text
+Upload
+  ↓
+FastAPI Gateway
+  ↓
+File / Format Detection
+  ↓
+Parsing
+  ↓
+Queue
+  ↓
+AI Processing
+```
+
+The uploaded source is also assigned a **hash/fingerprint** for provenance.
+
+---
+
+# 3. AI Extraction Engine
+
+From the FIR or other unstructured source, extract entities such as:
+
+```text
+PERSON
+PHONE
+LOCATION
+VEHICLE
+ORGANIZATION
+ACCOUNT
+CASE
+EVENT
+```
+
+Example:
+
+> Rahul met Arjun near Bhubaneswar using vehicle OD02AB1234.
+
+becomes:
+
+```text
+PERSON: Rahul
+PERSON: Arjun
+LOCATION: Bhubaneswar
+VEHICLE: OD02AB1234
+```
+
+We can use NER models such as spaCy/transformers for entity extraction.
+
+---
+
+# 4. Relationship Extraction
+
+Extract relationships from the same source.
+
+Example:
+
+```text
+Rahul ──met──> Arjun
+Rahul ──used──> Vehicle X
+Arjun ──located_at──> Location Y
+```
+
+Every relationship should retain:
+
+```text
+relationship_type
+source
+timestamp
+confidence
+evidence
+```
+
+Important: the LLM should **not blindly invent relationships**. The relationship should be backed by an evidence span from the source.
+
+---
+
+# 5. Entity Resolution
+
+This is where the system determines that apparently different records may represent the same entity.
+
+Example:
+
+```text
+Rahul Kumar
+R. Kumar
+Rahul K.
+```
+
+Potentially:
+
+```text
+             Same Entity?
+                   ↓
+        Entity Resolution Engine
+                   ↓
+Name similarity
+Phone
+Email
+Identifiers
+Location
+Context
+Embedding similarity
+                   ↓
+           Match Confidence
+```
+
+We can start with fuzzy matching/RapidFuzz and later add semantic similarity.
+
+---
+
+# 6. Cross-Database Correlation
+
+Once we have entities from the FIR, search **all relevant source databases**.
+
+Example:
+
+```text
+FIR
+ ↓
+Rahul
+ ↓
+CONTACT_DB
+ ├── calls Arjun repeatedly
+ ├── calls D
+ └── calls X
+
+BANK_DB
+ ├── transaction with B
+ └── transaction with C
+
+CRIMINAL_HISTORY_DB
+ └── previous case
+
+SURVEILLANCE_DB
+ └── recurring presence at Location Z
+
+SOCIAL_MEDIA_DB
+ └── association with Organization Q
+```
+
+This is where the initially fragmented information starts becoming intelligence.
+
+---
+
+# 7. Relationship Graph
+
+All resolved entities and relationships are represented in **Neo4j**.
+
+Example:
+
+```text
+             Rahul
+           /   |    \
+       calls  owns  seen_at
+        /      |       \
+     Arjun   Vehicle   Location
+       |
+     calls
+       |
+       D
+```
+
+The graph stores:
+
+```text
+Nodes
+Edges
+Relationship types
+Timestamps
+Source
+Confidence
+Evidence
+```
+
+### Database split
+
+Rather than running six separate database servers:
+
+```text
+PostgreSQL
+│
+├── fir_records
+├── contact_records
+├── bank_records
+├── social_records
+├── criminal_history
+└── surveillance_records
+```
+
+and:
+
+```text
+Neo4j
+└── Intelligence Graph
+```
+
+So:
+
+**PostgreSQL = source data**
+
+**Neo4j = relationship intelligence**
+
+---
+
+# 8. Network Intelligence Engine
+
+Once the graph exists, analyze it.
+
+### Key-influencer detection
+
+Use graph metrics such as:
+
+```text
+PageRank
+Betweenness Centrality
+Degree Centrality
+Community structure
+```
+
+to identify important nodes.
+
+Example:
+
+```text
+Person A
+17 connections
+3 communities
+high betweenness
+high transaction activity
+
+→ High-priority node
+```
+
+The system should describe this as an **analytical priority**, not declare someone guilty.
+
+---
+
+# 9. Suspicious Pattern & Anomaly Detection
+
+Look for patterns such as:
+
+```text
+Repeated calls
+Communication bursts
+Unusual financial activity
+Multiple connections across communities
+Shared locations
+Sudden network expansion
+Temporal coordination
+Unusual transaction behavior
+```
+
+The initial MVP can use rule/statistical scoring.
+
+Later, ML-based anomaly detection can be added.
+
+Output:
+
+```text
+Anomaly Score: 0.91
+```
+
+not:
+
+```text
+Person is criminal
+```
+
+---
+
+# 10. Multi-Hop Network Expansion
+
+This is one of our **main differentiating features**.
+
+Suppose the initial network is:
+
+```text
+A → B → C
+A → D
+C → D
+```
+
+Even though D wasn't in the initial FIR, D has multiple paths into the network.
+
+The system detects:
+
+```text
+A → D
+A → B → C → D
+```
+
+and increases D's investigation priority.
+
+### Recursive process
+
+```text
+Seed entities
+      ↓
+1-hop expansion
+      ↓
+Score connected entities
+      ↓
+Top-N candidates
+      ↓
+2-hop expansion
+      ↓
+Recalculate scores
+      ↓
+3-hop expansion
+      ↓
+Final network
+```
+
+We can start with **Top 3** high-priority entities and expand them to a configurable depth, such as 2–3 hops.
+
+This prevents the graph from exploding across the entire dataset.
+
+---
+
+# 11. Relationship / Network Scoring
+
+A discovered entity can receive a combined priority score based on signals such as:
+
+```text
+Contact strength
++
+Number of independent paths
++
+Financial relationship
++
+Shared locations
++
+Temporal correlation
++
+Criminal-history relationship
++
+Graph centrality
++
+Anomaly score
+```
+
+Example:
+
+```text
+D
+├── contacted by A
+├── contacted by C
+├── 2 independent paths to seed network
+├── shared locations
+├── unusual contact burst
+└── financial relationship with B
+
+Priority Score: 0.91
+```
+
+Crucially, the UI must show **why** the score was produced.
+
+---
+
+# 12. Temporal Analysis
+
+The graph should not be static.
+
+Add a timeline.
+
+Example:
+
+```text
+Day 1
+A ↔ B
+
+Day 3
+B ↔ C
+
+Day 5
+A ↔ D
+C ↔ D
+
+Day 7
+D ↔ Organization X
+```
+
+The investigator can select:
+
+```text
+Before Event
+After Event
+Last 7 days
+Last 30 days
+Custom range
+```
+
+and inspect how the network developed.
+
+---
+
+# 13. Natural-Language Investigation Assistant
+
+The investigator should be able to ask:
+
+> “Show all people connected to A through financial transactions.”
+
+or:
+
+> “Which individuals connect these two communities?”
+
+or:
+
+> “Why is D considered a high-priority entity?”
+
+Architecture:
+
+```text
+Natural Language
+      ↓
+LLM
+      ↓
+Cypher / Graph Query
+      ↓
+Neo4j
+      ↓
+Analytics
+      ↓
+Evidence-backed response
+```
+
+The LLM is the **interface**, not the source of truth.
+
+---
+
+# 14. Evidence & Explainability
+
+Every important relationship and alert needs an evidence trail.
+
+Example:
+
+```text
+Person A ── Financial Link ── Person B
+
+Evidence
+──────────────
+Transactions: 5
+Total amount: ₹X
+First observed: XX/XX/XXXX
+Last observed: XX/XX/XXXX
+Source: BANK_RECORD_042
+Confidence: 0.94
+```
+
+For a multi-hop relationship:
+
+```text
+Path 1:
+A → B → D
+
+Path 2:
+A → C → D
+```
+
+The investigator can see exactly **why D was surfaced**.
+
+---
+
+# 15. Blockchain / Tamper-Evident Layer
+
+This is how we address the official **Blockchain & Cybersecurity** theme without doing a pointless “blockchain database.”
+
+We **do not store sensitive FIR/CDR/bank data directly on-chain**.
+
+Instead:
+
+```text
+Source Record
+      ↓
+Canonical representation
+      ↓
+SHA-256 hash
+      ↓
+Tamper-evident ledger
+```
+
+Record audit events such as:
+
+```text
+DATA_INGESTED
+ENTITY_CREATED
+ENTITY_MERGED
+RELATION_CREATED
+ANALYSIS_EXECUTED
+REPORT_GENERATED
+INVESTIGATOR_ACCESSED_RECORD
+```
+
+If a stored record changes:
+
+```text
+Current Hash ≠ Recorded Hash
+             ↓
+       TAMPER DETECTED
+```
+
+This gives us **data integrity + provenance + auditability**.
+
+---
+
+# 16. Security Layer
+
+Because the users are investigators, security needs to be built in:
+
+```text
+Authentication
+RBAC
+Least-privilege access
+Encrypted storage
+Secure APIs
+Audit logging
+Tamper detection
+```
+
+Different investigators can have different access levels.
+
+---
+
+# 17. Investigator Dashboard
+
+The final UI should contain four major areas:
+
+### Network Graph
+
+Interactive node/edge visualization.
+
+### Timeline
+
+Replay how the network formed.
+
+### Evidence Cards
+
+Show source + relationship + confidence.
+
+### Alert Panel
+
+Show:
+
+```text
+High-priority entities
+Anomalies
+Suspicious patterns
+Network expansion candidates
+```
+
+---
+
+# 18. Final End-to-End Flow
+
+The entire system we have designed is:
+
+```text
+                    USER
+                     │
+               Upload FIR/Data
+                     │
+                     ▼
+              FASTAPI GATEWAY
+                     │
+              Hash / Audit Event
+                     │
+                     ▼
+              PARSING / QUEUE
+                     │
+                     ▼
+            AI EXTRACTION ENGINE
+             ┌───────┼────────┐
+             ▼       ▼        ▼
+            NER    Relations  Metadata
+             │       │
+             └───────┼────────┘
+                     ▼
+              ENTITY RESOLUTION
+                     │
+                     ▼
+             CROSS-SOURCE SEARCH
+                     │
+       ┌─────────────┼─────────────┐
+       ▼             ▼             ▼
+      FIR          CONTACT        BANK
+       │             │             │
+       ├─────────────┼─────────────┤
+       ▼             ▼             ▼
+     SOCIAL      CRIMINAL      SURVEILLANCE
+                     │
+                     ▼
+                 NEO4J
+              INTELLIGENCE GRAPH
+                     │
+          ┌──────────┼───────────┐
+          ▼          ▼           ▼
+      Centrality   Anomaly    Temporal
+       Engine      Engine      Engine
+          │          │           │
+          └──────────┼───────────┘
+                     ▼
+             TOP-N NETWORK NODES
+                     │
+                     ▼
+             MULTI-HOP EXPANSION
+                     │
+                     ▼
+              DEEPER NETWORK
+                     │
+                     ▼
+          INVESTIGATOR AI ASSISTANT
+                     │
+                     ▼
+           EXPLAINABLE INTELLIGENCE
+                     │
+                     ▼
+           SECURE / AUDITABLE REPORT
+                     │
+                     ▼
+          BLOCKCHAIN AUDIT / PROVENANCE
+```
+
+## What makes our concept different
+
+The core isn't simply:
+
+**“AI finds criminals.”**
+
+It is:
+
+> **A secure, explainable intelligence platform that starts from a known investigation, correlates fragmented data across multiple sources, discovers multi-hop relationships, identifies high-priority network entities, and provides evidence-backed investigative leads with tamper-evident provenance.**
