@@ -42,6 +42,10 @@ elif DATABASE_URL.startswith("postgres://"):
         1
     )
 
+print(
+    "DATABASE DRIVER:",
+    DATABASE_URL.split("://", 1)[0]
+)
 
 # ================================================================
 # ENGINE
