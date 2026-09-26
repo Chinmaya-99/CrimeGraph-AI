@@ -59,41 +59,6 @@ print(
     "DATABASE DRIVER:",
     database_url.drivername
 )
-
-
-# ================================================================
-# RUNTIME DRIVER DIAGNOSTICS
-# ================================================================
-
-import sys
-
-print(
-    "PYTHON EXECUTABLE:",
-    sys.executable
-)
-
-try:
-    import psycopg
-
-    print("PSYCOPG IMPORT: OK")
-    print("PSYCOPG VERSION:", psycopg.__version__)
-
-except Exception as exc:
-    print("PSYCOPG IMPORT: FAILED")
-    print("PSYCOPG ERROR:", repr(exc))
-
-
-try:
-    import psycopg2
-
-    print("PSYCOPG2 IMPORT: OK")
-    print("PSYCOPG2 VERSION:", psycopg2.__version__)
-
-except Exception as exc:
-    print("PSYCOPG2 IMPORT: FAILED")
-    print("PSYCOPG2 ERROR:", repr(exc))
-
-
 # ================================================================
 # ENGINE
 # pool_size     — number of persistent connections kept open
