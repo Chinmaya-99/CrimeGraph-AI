@@ -10,7 +10,9 @@ from graph.neo4j_client import (
 )
 from models.fir import FIRRecord
 from graph.graph_builder import GraphBuilder
+from models.users import User
 
+from services.rbac import require_permission
 
 router = APIRouter(
     prefix="/graphs",
@@ -25,6 +27,9 @@ router = APIRouter(
 async def get_historical_intelligence(
     fir_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(
+    require_permission("graph", "read")
+    ),
 ):
     """
     Retrieve previously stored LLM intelligence for a specific FIR.
@@ -125,6 +130,9 @@ async def get_historical_intelligence(
 async def project_fir_graph(
     fir_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(
+    require_permission("graph", "write")
+    ),
 ):
     """
     Project the latest validated LLM reasoning result
@@ -219,6 +227,10 @@ async def project_fir_graph(
 @router.get("/{fir_id}")
 async def get_fir_graph(
     fir_id: int,
+    current_user: User = Depends(
+        require_permission("graph", "read")
+    ),
+
 ):
     """
     Return the Neo4j graph for a FIR in a

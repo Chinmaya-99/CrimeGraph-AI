@@ -22,9 +22,8 @@ import hashlib
 import json
 import logging
 import re
-import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import text
@@ -39,7 +38,6 @@ from services.new_ner import (
 
 logger = logging.getLogger(__name__)
 
-_DEBUG_LOG = r"C:\Users\chinm\Desktop\sih\debug-031bd5.log"
 
 # ─────────────────────────────────────────────
 # Scoring weights (must sum to 1.0)
@@ -209,7 +207,7 @@ class CrossLookupResult:
     fir_id:        int
     total_entities: int
     entity_hits:   list[EntityHits]
-    processed_at:  datetime = field(default_factory=datetime.utcnow)
+    processed_at:  datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # ─────────────────────────────────────────────
@@ -1019,7 +1017,7 @@ def _log_audit(
             "target_table": target_table,
             "target_record_id": target_record_id,
             "metadata": metadata,
-            "ts": datetime.utcnow().isoformat(),
+            "ts": datetime.now(timezone.utc).isoformat(),
         },
         default=str,
     )
@@ -1127,13 +1125,6 @@ def _deduplicate_locations(entities: list[dict]) -> list[dict]:
     locations = [e for e in entities if get_entity_type(e) == "LOCATION"]
     others    = [e for e in entities if get_entity_type(e) != "LOCATION"]
 
-    # Get all gazetteer/high-confidence location values
-    gazetter = {
-        get_entity_text(e).lower()
-        for e in locations
-        if e.get("source") in ("gazetteer",)
-    }
-
     filtered_locs = []
     for loc in locations:
         val = get_entity_text(loc).lower()
@@ -1150,6 +1141,8 @@ def _deduplicate_locations(entities: list[dict]) -> list[dict]:
         filtered_locs.append(loc)
 
     return others + filtered_locs
+
+
 def _deduplicate_entities(entities: list[dict]) -> list[dict]:
     """
     Remove duplicate entities before database lookup.
@@ -1206,8 +1199,8 @@ def run_cross_lookup(
     logger.info("Cross-lookup started | fir_id=%s | entities=%d", fir_id, len(entities))
 
     all_entity_hits: list[EntityHits] = []
-    entities=_deduplicate_entities(entities)
-    
+    entities = _deduplicate_entities(entities)
+
     for entity in entities:
         display_value = get_entity_text(entity)
         value = get_lookup_value(entity)
@@ -1220,25 +1213,6 @@ def run_cross_lookup(
 
         if not value:
             continue
-
-        # #region agent log
-        try:
-            with open(_DEBUG_LOG, "a", encoding="utf-8") as _f:
-                _f.write(json.dumps({
-                    "sessionId": "031bd5",
-                    "hypothesisId": "H1",
-                    "location": "services/cross_lookup.py:run_cross_lookup",
-                    "message": "Resolved entity type for lookup",
-                    "data": {
-                        "raw_keys": list(entity.keys()),
-                        "resolved_type": label,
-                        "has_type": "type" in entity,
-                        "has_label": "label" in entity,
-                    },
-                    "timestamp": int(time.time() * 1000),
-                }) + "\n")
-        except Exception:
-                    pass
 
         # Use the canonical value for every database lookup while
         # preserving the original NER entity for display/audit purposes.
@@ -1289,26 +1263,6 @@ def run_cross_lookup(
         )
 
     db.flush()
-
-    # #region agent log
-    try:
-        with open(_DEBUG_LOG, "a", encoding="utf-8") as _f:
-            _f.write(json.dumps({
-                "sessionId": "031bd5",
-                "hypothesisId": "H4",
-                "location": "services/cross_lookup.py:run_cross_lookup",
-                "message": "Lookup finished without inner commit",
-                "data": {
-                    "fir_id": fir_id,
-                    "committed_inside_lookup": False,
-                    "entity_count": len(all_entity_hits),
-                    "flushed": True,
-                },
-                "timestamp": int(time.time() * 1000),
-            }) + "\n")
-    except Exception:
-        pass
-    # #endregion
 
     result = CrossLookupResult(
         fir_id         = fir_id,

@@ -4,16 +4,25 @@ from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
 
+
 load_dotenv()
+
 
 # ================================================================
 # DATABASE URL
-# format: postgresql://user:password@host:port/dbname
+# format:
+# postgresql://user:password@host:port/dbname
 # ================================================================
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:password@localhost:5432/crime_intelligence"
-)
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is not configured. "
+        "Set it to the PostgreSQL connection URL."
+    )
+
 
 # ================================================================
 # ENGINE
@@ -21,29 +30,34 @@ DATABASE_URL = os.getenv(
 # max_overflow  — extra connections allowed beyond pool_size
 # pool_pre_ping — checks connection health before using it
 # ================================================================
+
 engine = create_engine(
     DATABASE_URL,
     pool_size=10,
     max_overflow=20,
     pool_pre_ping=True,
-    echo=False          # set True to see SQL queries in terminal (debug only)
+    echo=False
 )
+
 
 # ================================================================
 # SESSION FACTORY
 # autocommit=False — we control when to commit
 # autoflush=False  — we control when to flush
 # ================================================================
+
 SessionLocal = sessionmaker(
     bind=engine,
     autocommit=False,
     autoflush=False
 )
 
+
 # ================================================================
 # BASE
 # all ORM models will inherit from this
 # ================================================================
+
 Base = declarative_base()
 
 
@@ -60,13 +74,17 @@ Base = declarative_base()
 #   def upload(db: Session = Depends(get_db)):
 #       ...
 # ================================================================
+
 def get_db():
     db = SessionLocal()
+
     try:
         yield db
+
     except Exception:
         db.rollback()
         raise
+
     finally:
         db.close()
 
@@ -78,11 +96,14 @@ def get_db():
 #
 # Usage in main.py:
 #   from database import init_db
+#
 #   @app.on_event("startup")
 #   def startup():
 #       init_db()
 # ================================================================
+
 def init_db():
+
     # import all models here so Base knows about them
     from models import (       # noqa: F401
         fir,
@@ -97,56 +118,168 @@ def init_db():
         users,
         role_permission,
     )
-    Base.metadata.create_all(bind=engine)
 
-    # Patch older databases that were created before schema.sql was updated
+    Base.metadata.create_all(
+        bind=engine
+    )
+
+    # Patch older databases that were created
+    # before schema.sql was updated.
     with engine.begin() as conn:
-        conn.execute(text(
-            "ALTER TABLE fir_records "
-            "ADD COLUMN IF NOT EXISTS locations_mentioned JSONB DEFAULT '[]'::jsonb"
-        ))
-        conn.execute(text(
-            "ALTER TABLE contact_records "
-            "ADD COLUMN IF NOT EXISTS source_file VARCHAR(500)"
-        ))
-        conn.execute(text(
-            "ALTER TABLE contact_records "
-            "ADD COLUMN IF NOT EXISTS source_hash VARCHAR(64)"
-        ))
-        conn.execute(text("""
-            CREATE UNIQUE INDEX IF NOT EXISTS uq_extracted_entities_fir_type_value
-            ON extracted_entities (fir_id, entity_type, entity_value)
-        """))
-        conn.execute(text("""
-            CREATE UNIQUE INDEX IF NOT EXISTS uq_role_permissions_role_resource
-            ON role_permissions (role, resource)
-        """))
-        conn.execute(text("""
-            INSERT INTO role_permissions (role, resource, can_read, can_write, can_delete) VALUES
-                ('admin',        'fir_records',          TRUE,  TRUE,  TRUE),
-                ('admin',        'graph',                TRUE,  TRUE,  TRUE),
-                ('admin',        'audit_ledger',         TRUE,  FALSE, FALSE),
-                ('investigator', 'fir_records',          TRUE,  TRUE,  FALSE),
-                ('investigator', 'graph',                TRUE,  TRUE,  FALSE),
-                ('investigator', 'audit_ledger',         TRUE,  FALSE, FALSE),
-                ('viewer',       'fir_records',          TRUE,  FALSE, FALSE),
-                ('viewer',       'graph',                TRUE,  FALSE, FALSE),
-                ('viewer',       'audit_ledger',         FALSE, FALSE, FALSE)
-            ON CONFLICT (role, resource) DO NOTHING
-        """))
 
-    print("✅ Database tables created / verified")
+        conn.execute(
+            text(
+                "ALTER TABLE fir_records "
+                "ADD COLUMN IF NOT EXISTS "
+                "locations_mentioned "
+                "JSONB DEFAULT '[]'::jsonb"
+            )
+        )
+
+        conn.execute(
+            text(
+                "ALTER TABLE contact_records "
+                "ADD COLUMN IF NOT EXISTS "
+                "source_file VARCHAR(500)"
+            )
+        )
+
+        conn.execute(
+            text(
+                "ALTER TABLE contact_records "
+                "ADD COLUMN IF NOT EXISTS "
+                "source_hash VARCHAR(64)"
+            )
+        )
+
+        conn.execute(
+            text(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS
+                uq_extracted_entities_fir_type_value
+                ON extracted_entities
+                (fir_id, entity_type, entity_value)
+                """
+            )
+        )
+
+        conn.execute(
+            text(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS
+                uq_role_permissions_role_resource
+                ON role_permissions
+                (role, resource)
+                """
+            )
+        )
+
+        conn.execute(
+            text(
+                """
+                INSERT INTO role_permissions
+                    (
+                        role,
+                        resource,
+                        can_read,
+                        can_write,
+                        can_delete
+                    )
+                VALUES
+                    (
+                        'admin',
+                        'fir_records',
+                        TRUE,
+                        TRUE,
+                        TRUE
+                    ),
+                    (
+                        'admin',
+                        'graph',
+                        TRUE,
+                        TRUE,
+                        TRUE
+                    ),
+                    (
+                        'admin',
+                        'audit_ledger',
+                        TRUE,
+                        FALSE,
+                        FALSE
+                    ),
+                    (
+                        'investigator',
+                        'fir_records',
+                        TRUE,
+                        TRUE,
+                        FALSE
+                    ),
+                    (
+                        'investigator',
+                        'graph',
+                        TRUE,
+                        TRUE,
+                        FALSE
+                    ),
+                    (
+                        'investigator',
+                        'audit_ledger',
+                        TRUE,
+                        FALSE,
+                        FALSE
+                    ),
+                    (
+                        'viewer',
+                        'fir_records',
+                        TRUE,
+                        FALSE,
+                        FALSE
+                    ),
+                    (
+                        'viewer',
+                        'graph',
+                        TRUE,
+                        FALSE,
+                        FALSE
+                    ),
+                    (
+                        'viewer',
+                        'audit_ledger',
+                        FALSE,
+                        FALSE,
+                        FALSE
+                    )
+                ON CONFLICT (role, resource)
+                DO NOTHING
+                """
+            )
+        )
+
+    print(
+        "Database tables created / verified"
+    )
 
 
 # ================================================================
 # HEALTH CHECK
 # call this to verify DB connection is alive
 # ================================================================
+
 def check_db_connection() -> bool:
+
     try:
+
         with engine.connect() as conn:
-            conn.execute((text("SELECT 1")))
+            conn.execute(
+                text("SELECT 1")
+            )
+
         return True
+
     except Exception as e:
-        print(f"❌ Database connection failed: {e}")
+
+        print(
+            f"Database connection failed: {e}"
+        )
+
         return False

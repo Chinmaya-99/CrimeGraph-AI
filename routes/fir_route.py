@@ -1,30 +1,52 @@
 import hashlib
-import json
-import time
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
-from fastapi.concurrency import run_in_threadpool
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    File,
+    HTTPException,
+    Depends,
+)
+
+from fastapi.concurrency import (
+    run_in_threadpool,
+)
+
 from sqlalchemy.orm import Session
 
 from data_base.database import get_db
+
 from models.fir import FIRRecord
 from models.entities import ExtractedEntity
 
-from services.pdf_reader import extract_text_from_pdf
+from services.pdf_reader import (
+    extract_text_from_pdf,
+)
+
 from services.new_ner import (
     extract_entities,
     get_entity_text,
     get_entity_type,
 )
+
 from services.cross_lookup import (
     run_cross_lookup,
     result_to_groq_payload,
-    log_data_ingested,
-    SYSTEM_ACTOR_ID,
 )
+
 from services.llm_reasoning import (
     LLMReasoningService,
     LLMReasoningError,
+)
+
+from models.users import User
+
+from services.rbac import (
+    require_permission,
+)
+
+from services.blockchain_service import (
+    record_fir_event,
 )
 
 
@@ -36,15 +58,16 @@ router = APIRouter(
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
 
-_DEBUG_LOG = r"C:\Users\chinm\Desktop\sih\debug-031bd5.log"
-
 
 def _texts_for_type(
     entities: list[dict],
     *types: str,
 ) -> list[str]:
 
-    wanted = {t.upper() for t in types}
+    wanted = {
+        t.upper()
+        for t in types
+    }
 
     values = []
     seen = set()
@@ -54,7 +77,9 @@ def _texts_for_type(
         if get_entity_type(entity) not in wanted:
             continue
 
-        text = get_entity_text(entity)
+        text = get_entity_text(
+            entity
+        )
 
         if not text:
             continue
@@ -62,6 +87,7 @@ def _texts_for_type(
         key = text.lower()
 
         if key not in seen:
+
             seen.add(key)
             values.append(text)
 
@@ -76,9 +102,13 @@ def _first_of_type(
 
     for entity in entities:
 
-        if get_entity_type(entity) == etype.upper():
+        if get_entity_type(
+            entity
+        ) == etype.upper():
 
-            value = get_entity_text(entity)
+            value = get_entity_text(
+                entity
+            )
 
             if value:
                 return value[:limit]
@@ -90,6 +120,12 @@ def _first_of_type(
 async def upload_fir(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_permission(
+            "fir_records",
+            "write",
+        )
+    ),
 ):
 
     # ------------------------------------------------------------
@@ -104,17 +140,23 @@ async def upload_fir(
             status_code=413,
             detail=(
                 f"PDF exceeds the "
-                f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB upload limit."
+                f"{MAX_UPLOAD_BYTES // (1024 * 1024)} "
+                f"MB upload limit."
             ),
         )
 
-    filename = file.filename or "upload.pdf"
+    filename = (
+        file.filename
+        or "upload.pdf"
+    )
 
     content_type = (
         file.content_type or ""
     ).split(";")[0].strip().lower()
 
-    name_looks_pdf = filename.lower().endswith(".pdf")
+    name_looks_pdf = (
+        filename.lower().endswith(".pdf")
+    )
 
     type_ok = content_type in {
         "application/pdf",
@@ -127,7 +169,9 @@ async def upload_fir(
     # Validate PDF
     # ------------------------------------------------------------
 
-    if not file_bytes.startswith(b"%PDF"):
+    if not file_bytes.startswith(
+        b"%PDF"
+    ):
 
         if not (
             name_looks_pdf
@@ -164,14 +208,19 @@ async def upload_fir(
 
         raise HTTPException(
             status_code=400,
-            detail=f"Failed to read PDF: {str(e)}",
+            detail=(
+                f"Failed to read PDF: {str(e)}"
+            ),
         )
 
     if not extracted_text.strip():
 
         raise HTTPException(
             status_code=400,
-            detail="No text could be extracted from this PDF.",
+            detail=(
+                "No text could be extracted "
+                "from this PDF."
+            ),
         )
 
     # ------------------------------------------------------------
@@ -189,7 +238,9 @@ async def upload_fir(
 
         raise HTTPException(
             status_code=500,
-            detail=f"Entity extraction failed: {str(e)}",
+            detail=(
+                f"Entity extraction failed: {str(e)}"
+            ),
         )
 
     # ------------------------------------------------------------
@@ -236,54 +287,6 @@ async def upload_fir(
     )
 
     # ------------------------------------------------------------
-    # Debug logging
-    # ------------------------------------------------------------
-
-    try:
-
-        with open(
-            _DEBUG_LOG,
-            "a",
-            encoding="utf-8",
-        ) as _f:
-
-            _f.write(
-                json.dumps(
-                    {
-                        "sessionId": "031bd5",
-                        "hypothesisId": "H1",
-                        "location": "routes/fir.py:upload_fir",
-                        "message": (
-                            "FIR JSONB mention lists after NER"
-                        ),
-                        "data": {
-                            "case_id": case_id,
-                            "fir_number": fir_number,
-                            "source_hash_len": len(
-                                source_hash or ""
-                            ),
-                            "persons": persons,
-                            "vehicles": vehicles,
-                            "phones": phones,
-                            "orgs": orgs,
-                            "locations": locations,
-                            "entity_types": [
-                                get_entity_type(e)
-                                for e in entities
-                            ],
-                        },
-                        "timestamp": int(
-                            time.time() * 1000
-                        ),
-                    }
-                )
-                + "\n"
-            )
-
-    except Exception:
-        pass
-
-    # ------------------------------------------------------------
     # Create FIR record
     # ------------------------------------------------------------
 
@@ -322,7 +325,10 @@ async def upload_fir(
                 entity
             )
 
-            if not entity_text or not entity_type:
+            if (
+                not entity_text
+                or not entity_type
+            ):
                 continue
 
             extracted_entity = ExtractedEntity(
@@ -337,63 +343,38 @@ async def upload_fir(
                 ),
             )
 
-            db.add(extracted_entity)
+            db.add(
+                extracted_entity
+            )
 
         db.flush()
 
         # --------------------------------------------------------
-        # Provenance / audit logging
+        # Blockchain / provenance logging
+        # --------------------------------------------------------
+        #
+        # The source PDF hash is recorded inside
+        # the tamper-evident audit chain.
+        #
+        # No raw PDF content is placed into
+        # the ledger.
+        #
+        # This is the centralized blockchain/provenance
+        # implementation.
         # --------------------------------------------------------
 
-        log_data_ingested(
-            db,
+        record_fir_event(
+            db=db,
             fir_id=fir.fir_id,
-            source_file=filename,
-            source_hash=source_hash,
-            actor_id=SYSTEM_ACTOR_ID,
+            event_type="FIR_INGESTED",
+            metadata={
+                "source_file": filename,
+                "source_hash": source_hash,
+                "entity_count": len(entities),
+            },
+            actor_id=current_user.user_id,
+            actor_role=current_user.role,
         )
-
-        # --------------------------------------------------------
-        # Debug logging
-        # --------------------------------------------------------
-
-        try:
-
-            with open(
-                _DEBUG_LOG,
-                "a",
-                encoding="utf-8",
-            ) as _f:
-
-                _f.write(
-                    json.dumps(
-                        {
-                            "sessionId": "031bd5",
-                            "hypothesisId": "H3",
-                            "location": (
-                                "routes/fir.py:upload_fir"
-                            ),
-                            "message": (
-                                "FIR flushed with provenance "
-                                "+ DATA_INGESTED"
-                            ),
-                            "data": {
-                                "fir_id": fir.fir_id,
-                                "source_hash": source_hash,
-                                "has_source_hash": bool(
-                                    fir.source_hash
-                                ),
-                            },
-                            "timestamp": int(
-                                time.time() * 1000
-                            ),
-                        }
-                    )
-                    + "\n"
-                )
-
-        except Exception:
-            pass
 
         # --------------------------------------------------------
         # Cross-database lookup
@@ -404,10 +385,12 @@ async def upload_fir(
             db,
             fir.fir_id,
             entities,
+            current_user.user_id,
+            current_user.role,
         )
 
-        # Convert deterministic lookup result into
-        # the evidence structure expected by the LLM.
+        # Convert deterministic lookup result
+        # into the evidence structure expected by the LLM.
         groq_payload = result_to_groq_payload(
             cross_result
         )
@@ -423,7 +406,9 @@ async def upload_fir(
             llm_response = await (
                 llm_service.get_response_llm(
                     cross_result,
-                    fir_context=fir.description or "",
+                    fir_context=(
+                        fir.description or ""
+                    ),
                 )
             )
 
@@ -443,7 +428,9 @@ async def upload_fir(
 
             raise HTTPException(
                 status_code=502,
-                detail=f"LLM reasoning failed: {str(e)}",
+                detail=(
+                    f"LLM reasoning failed: {str(e)}"
+                ),
             )
 
         # --------------------------------------------------------
@@ -451,7 +438,7 @@ async def upload_fir(
         #
         # FIR
         # + normalized entities
-        # + audit/provenance
+        # + blockchain/provenance
         # + cross lookup changes
         # + LLM reasoning
         #
@@ -472,7 +459,8 @@ async def upload_fir(
         raise HTTPException(
             status_code=500,
             detail=(
-                f"FIR upload pipeline failed: {str(e)}"
+                "FIR upload pipeline failed: "
+                f"{str(e)}"
             ),
         )
 
@@ -492,12 +480,16 @@ async def upload_fir(
         "cross_lookup": groq_payload,
 
         "llm_reasoning": {
-            "reasoning_id": llm_row.reasoning_id,
+            "reasoning_id": (
+                llm_row.reasoning_id
+            ),
             "relations": (
                 llm_response["result"]["relations"]
             ),
             "suspicious_flags": (
-                llm_response["result"]["suspicious_flags"]
+                llm_response["result"][
+                    "suspicious_flags"
+                ]
             ),
             "summary": (
                 llm_response["result"]["summary"]
