@@ -3,7 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
-
+import psycopg2
 
 load_dotenv()
 
@@ -42,10 +42,6 @@ elif DATABASE_URL.startswith("postgres://"):
         1
     )
 
-print(
-    "DATABASE DRIVER:",
-    DATABASE_URL.split("://", 1)[0]
-)
 
 # ================================================================
 # ENGINE
@@ -56,6 +52,7 @@ print(
 
 engine = create_engine(
     DATABASE_URL,
+    module=psycopg2,
     pool_size=10,
     max_overflow=20,
     pool_pre_ping=True,
