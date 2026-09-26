@@ -42,6 +42,31 @@ elif DATABASE_URL.startswith("postgres://"):
         1
     )
 
+print(
+    "DATABASE DRIVER:",
+    DATABASE_URL.split("://", 1)[0]
+)
+
+import sys
+
+print("PYTHON EXECUTABLE:", sys.executable)
+
+try:
+    import psycopg
+    print("PSYCOPG IMPORT: OK")
+    print("PSYCOPG VERSION:", psycopg.__version__)
+except Exception as exc:
+    print("PSYCOPG IMPORT: FAILED")
+    print("PSYCOPG ERROR:", repr(exc))
+
+try:
+    import psycopg2
+    print("PSYCOPG2 IMPORT: OK")
+    print("PSYCOPG2 VERSION:", psycopg2.__version__)
+except Exception as exc:
+    print("PSYCOPG2 IMPORT: FAILED")
+    print("PSYCOPG2 ERROR:", repr(exc))
+
 
 # ================================================================
 # ENGINE
