@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
@@ -42,27 +43,52 @@ elif DATABASE_URL.startswith("postgres://"):
         1
     )
 
+
+# ================================================================
+# FORCE SQLALCHEMY DRIVER EXPLICITLY
+# ================================================================
+
+database_url = make_url(DATABASE_URL)
+
+if database_url.drivername != "postgresql+psycopg2":
+    database_url = database_url.set(
+        drivername="postgresql+psycopg2"
+    )
+
 print(
     "DATABASE DRIVER:",
-    DATABASE_URL.split("://", 1)[0]
+    database_url.drivername
 )
+
+
+# ================================================================
+# RUNTIME DRIVER DIAGNOSTICS
+# ================================================================
 
 import sys
 
-print("PYTHON EXECUTABLE:", sys.executable)
+print(
+    "PYTHON EXECUTABLE:",
+    sys.executable
+)
 
 try:
     import psycopg
+
     print("PSYCOPG IMPORT: OK")
     print("PSYCOPG VERSION:", psycopg.__version__)
+
 except Exception as exc:
     print("PSYCOPG IMPORT: FAILED")
     print("PSYCOPG ERROR:", repr(exc))
 
+
 try:
     import psycopg2
+
     print("PSYCOPG2 IMPORT: OK")
     print("PSYCOPG2 VERSION:", psycopg2.__version__)
+
 except Exception as exc:
     print("PSYCOPG2 IMPORT: FAILED")
     print("PSYCOPG2 ERROR:", repr(exc))
@@ -76,7 +102,7 @@ except Exception as exc:
 # ================================================================
 
 engine = create_engine(
-    DATABASE_URL,
+    database_url,
     module=psycopg2,
     pool_size=10,
     max_overflow=20,
