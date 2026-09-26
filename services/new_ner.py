@@ -167,7 +167,13 @@ def _load_spacy_model():
         ) from exc
 
 
-nlp = _load_spacy_model()
+_nlp = None
+
+def get_nlp():
+    global _nlp
+    if _nlp is None:
+        _nlp = _load_spacy_model()
+    return _nlp
 
 
 # ================================================================
@@ -2094,9 +2100,7 @@ def _extract_spacy_entities(
     if not text:
         return []
 
-    doc = nlp(
-        text
-    )
+    doc = get_nlp()(text)
 
     results = []
 
