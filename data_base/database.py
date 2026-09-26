@@ -68,7 +68,6 @@ print(
 
 engine = create_engine(
     database_url,
-    module=psycopg2,
     pool_size=10,
     max_overflow=20,
     pool_pre_ping=True,
