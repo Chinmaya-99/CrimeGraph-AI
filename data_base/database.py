@@ -1,79 +1,32 @@
+import os
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import make_url
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import os
 from dotenv import load_dotenv
-import psycopg2
 
 load_dotenv()
 
+_raw = os.getenv("DATABASE_URL", "")
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not DATABASE_URL:
-    raise RuntimeError(
-        "DATABASE_URL is not configured. "
-        "Set it to the PostgreSQL connection URL."
-    )
-
-
-# ================================================================
-# FORCE PSYCOPG2
-# ================================================================
-
-if DATABASE_URL.startswith("postgresql+psycopg://"):
-    DATABASE_URL = DATABASE_URL.replace(
-        "postgresql+psycopg://",
-        "postgresql+psycopg2://",
-        1
-    )
-
-elif DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace(
-        "postgresql://",
-        "postgresql+psycopg2://",
-        1
-    )
-
-elif DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace(
-        "postgres://",
-        "postgresql+psycopg2://",
-        1
-    )
-
-
-# ================================================================
-# FORCE SQLALCHEMY DRIVER EXPLICITLY
-# ================================================================
-
-database_url = make_url(DATABASE_URL)
-
-if database_url.drivername != "postgresql+psycopg2":
-    database_url = database_url.set(
-        drivername="postgresql+psycopg2"
-    )
-
-print(
-    "DATABASE DRIVER:",
-    database_url.drivername
+# Force psycopg2 no matter what format the URL comes in
+_url = (
+    _raw
+    .replace("postgresql+psycopg://", "postgresql+psycopg2://")
+    .replace("postgres://", "postgresql+psycopg2://")
 )
-# ================================================================
-# ENGINE
-# pool_size     — number of persistent connections kept open
-# max_overflow  — extra connections allowed beyond pool_size
-# pool_pre_ping — checks connection health before using it
-# ================================================================
+
+if _url.startswith("postgresql://"):
+    _url = "postgresql+psycopg2://" + _url[len("postgresql://"):]
+
+print("FINAL URL DRIVER:", _url.split("://")[0])
 
 engine = create_engine(
-    database_url,
+    _url,
     pool_size=10,
     max_overflow=20,
     pool_pre_ping=True,
-    echo=False
+    echo=False,
 )
-
 
 # ================================================================
 # SESSION FACTORY
